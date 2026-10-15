@@ -67,7 +67,10 @@ with st.sidebar:
     analyze = st.button('Analyze portfolio', type='primary')
     st.divider()
     st.subheader('Saved portfolios')
-    st.write(', '.join(st.session_state.portfolios.keys()) if st.session_state.portfolios else 'No saved portfolios yet')
+    if st.session_state.portfolios:
+        st.write(', '.join(st.session_state.portfolios.keys()))
+    else:
+        st.write('No saved portfolios yet')
 
 if page == 'Portfolio Builder':
     st.info('Use the sidebar controls to build your portfolio, then choose Portfolio Overview to run the analysis.')
@@ -97,7 +100,7 @@ if page == 'Portfolio Overview' and analyze:
     annual_return = portfolio_returns.mean() * 252
     annual_vol = portfolio_returns.std() * np.sqrt(252)
     sharpe = annual_return / annual_vol if annual_vol else np.nan
-    st.session_state.portfolios[portfolio_name] = {'stocks': selected_names, 'weights': weights.tolist()}
+    st.session_state.portfolios[portfolio_name] = {'stocks': selected_names, 'weights': weights.tolist(), 'benchmark': benchmark, 'start_date': str(start), 'end_date': str(end)}
     c1, c2, c3, c4 = st.columns(4)
     c1.metric('Annual return', f'{annual_return:.2%}')
     c2.metric('Annual volatility', f'{annual_vol:.2%}')
@@ -356,6 +359,43 @@ elif page == 'Stock Details':
                 dividend_table = dividends.rename('Dividend').to_frame()
                 st.dataframe(dividend_table, use_container_width=True)
                 st.download_button('Download dividend data CSV', dividend_table.to_csv().encode('utf-8'), 'stock_dividends.csv', 'text/csv')
+
+elif page == 'Saved Portfolios':
+    st.subheader('Saved Portfolios')
+    st.caption('Load, review, and manage portfolios saved in this browser session.')
+    if not st.session_state.portfolios:
+        st.info('No saved portfolios yet. Build a portfolio and click Analyze portfolio to save it.')
+    else:
+        portfolio_names = list(st.session_state.portfolios.keys())
+        selected_saved = st.selectbox('Select a saved portfolio', portfolio_names, key='saved_portfolio_select')
+        saved = st.session_state.portfolios[selected_saved]
+        saved_stocks = saved.get('stocks', [])
+        saved_weights = saved.get('weights', [])
+        saved_tickers = [STOCKS.get(name, '') for name in saved_stocks]
+        st.markdown(f'### {selected_saved}')
+        details = pd.DataFrame({'Stock': saved_stocks, 'Ticker': saved_tickers, 'Weight': saved_weights})
+        if not details.empty:
+            st.dataframe(details.style.format({'Weight': '{:.1%}'}), hide_index=True, use_container_width=True)
+        d1, d2, d3 = st.columns(3)
+        d1.metric('Benchmark', saved.get('benchmark', '^GSPC'))
+        d2.metric('Start date', str(saved.get('start_date', 'Not recorded')))
+        d3.metric('End date', str(saved.get('end_date', 'Not recorded')))
+        if st.button('Load selected portfolio', type='primary'):
+            st.session_state.holdings = [{'name': name, 'weight': float(weight) * 100 if float(weight) <= 1 else float(weight)} for name, weight in zip(saved_stocks, saved_weights)]
+            st.session_state.loaded_portfolio_name = selected_saved
+            st.session_state.loaded_benchmark = saved.get('benchmark', '^GSPC')
+            st.session_state.loaded_start = saved.get('start_date')
+            st.session_state.loaded_end = saved.get('end_date')
+            st.success(f'Loaded {selected_saved}. Go to Portfolio Overview and click Analyze portfolio.')
+            st.rerun()
+        st.divider()
+        st.markdown('### Delete portfolio')
+        delete_confirm = st.checkbox(f'I understand that deleting {selected_saved} cannot be undone.', key='delete_confirm')
+        if st.button('Delete selected portfolio', disabled=not delete_confirm):
+            del st.session_state.portfolios[selected_saved]
+            st.success(f'Deleted {selected_saved}.')
+            st.rerun()
+        st.caption('Saved portfolios use Streamlit session state in the free setup, so they may reset when the app session restarts.')
 
 elif page == 'Historical Data':
     st.subheader('Historical Data')
