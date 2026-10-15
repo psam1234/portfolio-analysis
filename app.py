@@ -71,7 +71,7 @@ with st.sidebar:
 
 if page == 'Portfolio Builder':
     st.info('Use the sidebar controls to build your portfolio, then choose Portfolio Overview to run the analysis.')
-elif page not in ('Portfolio Overview', 'Historical Data'):
+elif page != 'Portfolio Overview':
     st.info(f'{page} will be added in the next step.')
 
 if page == 'Portfolio Overview' and analyze:
@@ -116,6 +116,91 @@ if page == 'Portfolio Overview' and analyze:
     st.plotly_chart(fig, use_container_width=True)
 elif page == 'Portfolio Overview':
     st.info('Add stocks, set their weights to total 100%, then click Analyze portfolio.')
+elif page == 'Performance Analysis':
+    st.subheader('Performance Analysis')
+    st.caption('Compare your portfolio performance with the selected benchmark over time.')
+    selected_names = [h['name'] for h in st.session_state.holdings]
+    tickers = [STOCKS[n] for n in selected_names]
+    weights = np.array([h['weight'] for h in st.session_state.holdings]) / 100
+    with st.spinner('Downloading performance data...'):
+        raw = yf.download(tickers + [benchmark], start=start, end=end, auto_adjust=False, progress=False)
+    if raw.empty:
+        st.warning('No performance data was returned for the selected portfolio and date range.')
+    else:
+        close = raw['Adj Close'] if 'Adj Close' in raw else raw['Close']
+        if isinstance(close, pd.Series):
+            close = close.to_frame(name=(tickers + [benchmark])[0])
+        close = close.dropna(how='all').ffill().dropna(how='all')
+        portfolio_prices = close[[t for t in tickers if t in close.columns]]
+        missing_stocks = [n for n, t in zip(selected_names, tickers) if t not in portfolio_prices.columns]
+        if missing_stocks:
+            st.warning('No benchmark-period data was available for: ' + ', '.join(missing_stocks))
+        usable = [t for t in tickers if t in portfolio_prices.columns]
+        if not usable:
+            st.error('No usable stock price data is available.')
+        else:
+            usable_weights = np.array([weights[tickers.index(t)] for t in usable])
+            stock_returns = portfolio_prices[usable].pct_change()
+            portfolio_returns = stock_returns.fillna(0).dot(usable_weights).rename('Portfolio')
+            benchmark_series = close[benchmark].dropna() if benchmark in close.columns else pd.Series(dtype=float)
+            if benchmark_series.empty:
+                st.warning(f'Benchmark data for {benchmark} was not available. Portfolio analysis is shown without benchmark comparison.')
+                benchmark_returns = pd.Series(index=portfolio_returns.index, dtype=float, name='Benchmark')
+            else:
+                benchmark_returns = benchmark_series.pct_change().reindex(portfolio_returns.index).rename('Benchmark')
+            performance = pd.concat([portfolio_returns, benchmark_returns], axis=1).dropna(subset=['Portfolio'])
+            data_start = performance.index.min().date()
+            data_end = performance.index.max().date()
+            f1, f2 = st.columns(2)
+            with f1:
+                perf_start = st.date_input('Analysis start date', data_start, min_value=data_start, max_value=data_end, key='performance_start')
+            with f2:
+                perf_end = st.date_input('Analysis end date', data_end, min_value=data_start, max_value=data_end, key='performance_end')
+            if perf_start > perf_end:
+                st.error('Analysis start date must be before or equal to the end date.')
+                st.stop()
+            period = performance.loc[(performance.index.date >= perf_start) & (performance.index.date <= perf_end)].copy()
+            if period.empty:
+                st.warning('No data is available for the selected analysis dates.')
+            else:
+                portfolio_total = (1 + period['Portfolio']).prod() - 1
+                benchmark_total = (1 + period['Benchmark']).prod() - 1 if period['Benchmark'].notna().any() else np.nan
+                annualized = (1 + portfolio_total) ** (252 / max(len(period), 1)) - 1
+                difference = portfolio_total - benchmark_total if pd.notna(benchmark_total) else np.nan
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric('Total portfolio return', f'{portfolio_total:.2%}')
+                c2.metric('Annualized return', f'{annualized:.2%}')
+                c3.metric('Benchmark return', f'{benchmark_total:.2%}' if pd.notna(benchmark_total) else 'Unavailable')
+                c4.metric('Difference vs benchmark', f'{difference:.2%}' if pd.notna(difference) else 'Unavailable')
+                if pd.notna(difference):
+                    st.success('Outperformed the benchmark.' if difference >= 0 else 'Underperformed the benchmark.')
+                st.info('Returns show how much the portfolio changed during the selected period. Annualized return estimates the equivalent one-year rate.')
+                cumulative = pd.DataFrame(index=period.index)
+                cumulative['Portfolio'] = (1 + period['Portfolio']).cumprod()
+                if period['Benchmark'].notna().any():
+                    cumulative['Benchmark'] = (1 + period['Benchmark'].fillna(0)).cumprod()
+                st.markdown('### Cumulative return')
+                st.line_chart((cumulative - 1) * 100)
+                st.markdown('### Portfolio versus benchmark growth')
+                st.line_chart(cumulative * 100)
+                monthly = period[['Portfolio', 'Benchmark']].resample('ME').apply(lambda x: (1 + x).prod() - 1)
+                monthly.index = monthly.index.to_period('M').astype(str)
+                yearly = period[['Portfolio', 'Benchmark']].resample('YE').apply(lambda x: (1 + x).prod() - 1)
+                yearly.index = yearly.index.year
+                st.markdown('### Monthly returns')
+                st.dataframe(monthly.style.format('{:.2%}'), use_container_width=True)
+                st.download_button('Download monthly returns CSV', monthly.to_csv().encode('utf-8'), 'monthly_returns.csv', 'text/csv')
+                st.markdown('### Yearly returns')
+                st.dataframe(yearly.style.format('{:.2%}'), use_container_width=True)
+                st.download_button('Download yearly returns CSV', yearly.to_csv().encode('utf-8'), 'yearly_returns.csv', 'text/csv')
+                rolling = pd.DataFrame(index=period.index)
+                rolling['Portfolio 30-day'] = (1 + period['Portfolio']).rolling(30).apply(np.prod, raw=True) - 1
+                rolling['Portfolio 1-year'] = (1 + period['Portfolio']).rolling(252).apply(np.prod, raw=True) - 1
+                st.markdown('### Rolling returns')
+                st.line_chart(rolling * 100)
+                st.download_button('Download daily returns CSV', period.to_csv().encode('utf-8'), 'daily_returns.csv', 'text/csv')
+                st.download_button('Download portfolio versus benchmark CSV', cumulative.to_csv().encode('utf-8'), 'portfolio_vs_benchmark.csv', 'text/csv')
+
 elif page == 'Historical Data':
     st.subheader('Historical Data')
     selected_names = [h['name'] for h in st.session_state.holdings]
