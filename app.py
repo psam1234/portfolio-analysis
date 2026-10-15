@@ -71,7 +71,7 @@ with st.sidebar:
 
 if page == 'Portfolio Builder':
     st.info('Use the sidebar controls to build your portfolio, then choose Portfolio Overview to run the analysis.')
-elif page not in ('Portfolio Overview', 'Performance Analysis', 'Historical Data', 'Risk & KPI Analysis'):
+elif page not in ('Portfolio Overview', 'Performance Analysis', 'Historical Data', 'Risk & KPI Analysis', 'Stock Details'):
     st.info(f'{page} will be added in the next step.')
 
 if page == 'Portfolio Overview' and analyze:
@@ -268,6 +268,94 @@ elif page == 'Risk & KPI Analysis':
                 st.dataframe(comparison.describe().T, use_container_width=True)
                 st.markdown('### Correlation matrix')
                 st.dataframe(stock_returns[usable].corr().style.format('{:.2f}'), use_container_width=True)
+
+elif page == 'Stock Details':
+    st.subheader('Stock Details')
+    st.caption('Explore one selected stock in detail using historical market data.')
+    selected_names = [h['name'] for h in st.session_state.holdings]
+    stock_name = st.selectbox('Select a stock', selected_names, key='detail_stock')
+    ticker = STOCKS[stock_name]
+    with st.spinner('Downloading stock data...'):
+        stock_raw = yf.download([ticker, benchmark], start=start, end=end, auto_adjust=False, progress=False)
+    if stock_raw.empty:
+        st.warning(f'No data was returned for {stock_name} ({ticker}) in the selected period.')
+    else:
+        stock_close = stock_raw['Adj Close'] if 'Adj Close' in stock_raw else stock_raw['Close']
+        stock_volume = stock_raw['Volume'] if 'Volume' in stock_raw else pd.DataFrame(index=stock_close.index)
+        if isinstance(stock_close, pd.Series): stock_close = stock_close.to_frame(name=ticker)
+        if isinstance(stock_volume, pd.Series): stock_volume = stock_volume.to_frame(name=ticker)
+        if ticker not in stock_close.columns or stock_close[ticker].dropna().empty:
+            st.warning(f'No historical data was available for {stock_name} ({ticker}) in the selected period.')
+        else:
+            prices = stock_close[[ticker]].dropna()
+            returns = prices[ticker].pct_change().dropna().rename('Daily return')
+            volumes = stock_volume[[ticker]].reindex(prices.index).dropna(how='all') if ticker in stock_volume.columns else pd.DataFrame(index=prices.index)
+            detail_start, detail_end = prices.index.min().date(), prices.index.max().date()
+            d1, d2 = st.columns(2)
+            with d1: detail_from = st.date_input('Stock start date', detail_start, min_value=detail_start, max_value=detail_end, key='detail_start')
+            with d2: detail_to = st.date_input('Stock end date', detail_end, min_value=detail_start, max_value=detail_end, key='detail_end')
+            if detail_from > detail_to:
+                st.error('Stock start date must be before or equal to the end date.')
+                st.stop()
+            price_period = prices.loc[(prices.index.date >= detail_from) & (prices.index.date <= detail_to)]
+            return_period = returns.loc[(returns.index.date >= detail_from) & (returns.index.date <= detail_to)]
+            volume_period = volumes.loc[(volumes.index.date >= detail_from) & (volumes.index.date <= detail_to)]
+            bench = stock_close[benchmark].pct_change().reindex(return_period.index).dropna() if benchmark in stock_close.columns else pd.Series(dtype=float)
+            ann = 252
+            annual_return = (1 + return_period).prod() ** (ann / max(len(return_period), 1)) - 1 if not return_period.empty else np.nan
+            annual_vol = return_period.std() * np.sqrt(ann) if not return_period.empty else np.nan
+            sharpe = (return_period.mean() * ann) / annual_vol if annual_vol and not np.isnan(annual_vol) else np.nan
+            wealth = (1 + return_period).cumprod() if not return_period.empty else pd.Series(dtype=float)
+            drawdown = wealth / wealth.cummax() - 1 if not wealth.empty else pd.Series(dtype=float)
+            max_dd = drawdown.min() if not drawdown.empty else np.nan
+            beta = np.nan
+            if not bench.empty:
+                aligned = pd.concat([return_period.rename('stock'), bench.rename('benchmark')], axis=1).dropna()
+                if len(aligned) > 1 and aligned['benchmark'].var() != 0:
+                    beta = aligned['stock'].cov(aligned['benchmark']) / aligned['benchmark'].var()
+            st.markdown(f'### {stock_name} ({ticker})')
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric('Annual return', f'{annual_return:.2%}' if pd.notna(annual_return) else 'Unavailable')
+            c2.metric('Annualized volatility', f'{annual_vol:.2%}' if pd.notna(annual_vol) else 'Unavailable')
+            c3.metric('Beta vs benchmark', f'{beta:.2f}' if pd.notna(beta) else 'Unavailable')
+            c4.metric('Sharpe ratio', f'{sharpe:.2f}' if pd.notna(sharpe) else 'Unavailable')
+            c5, c6, c7, c8 = st.columns(4)
+            c5.metric('Maximum drawdown', f'{max_dd:.2%}' if pd.notna(max_dd) else 'Unavailable')
+            c6.metric('Best day', f'{return_period.max():.2%}' if not return_period.empty else 'Unavailable')
+            c7.metric('Worst day', f'{return_period.min():.2%}' if not return_period.empty else 'Unavailable')
+            c8.metric('Ticker', ticker)
+            if bench.empty:
+                st.warning(f'Benchmark data for {benchmark} was unavailable. Beta cannot be calculated.')
+            st.info('Annual return estimates the yearly growth rate. Volatility measures price fluctuation. Beta shows sensitivity to the benchmark. Sharpe compares return with risk. Maximum drawdown is the largest fall from a previous peak.')
+            st.markdown('### Historical adjusted price')
+            st.line_chart(price_period)
+            st.markdown('### Daily returns')
+            st.line_chart(return_period * 100)
+            st.markdown('### Historical price data')
+            st.dataframe(price_period.style.format('{:.2f}'), use_container_width=True)
+            st.download_button('Download historical prices CSV', price_period.to_csv().encode('utf-8'), 'stock_prices.csv', 'text/csv')
+            st.markdown('### Daily return data')
+            return_table = return_period.to_frame()
+            st.dataframe(return_table.style.format('{:.2%}'), use_container_width=True)
+            st.download_button('Download daily returns CSV', return_table.to_csv().encode('utf-8'), 'stock_daily_returns.csv', 'text/csv')
+            st.markdown('### Trading volume')
+            if volume_period.empty:
+                st.info('Trading volume is not available for this data source and period.')
+            else:
+                st.dataframe(volume_period, use_container_width=True)
+                st.download_button('Download trading volume CSV', volume_period.to_csv().encode('utf-8'), 'stock_volume.csv', 'text/csv')
+            st.markdown('### Dividend information')
+            try:
+                dividends = yf.Ticker(ticker).dividends
+                dividends = dividends.loc[(dividends.index.date >= detail_from) & (dividends.index.date <= detail_to)]
+            except Exception:
+                dividends = pd.Series(dtype=float)
+            if dividends.empty:
+                st.info('No dividend information was provided for this stock and period.')
+            else:
+                dividend_table = dividends.rename('Dividend').to_frame()
+                st.dataframe(dividend_table, use_container_width=True)
+                st.download_button('Download dividend data CSV', dividend_table.to_csv().encode('utf-8'), 'stock_dividends.csv', 'text/csv')
 
 elif page == 'Historical Data':
     st.subheader('Historical Data')
