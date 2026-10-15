@@ -116,3 +116,72 @@ if page == 'Portfolio Overview' and analyze:
     st.plotly_chart(fig, use_container_width=True)
 elif page == 'Portfolio Overview':
     st.info('Add stocks, set their weights to total 100%, then click Analyze portfolio.')
+elif page == 'Historical Data':
+    st.subheader('Historical Data')
+    selected_names = [h['name'] for h in st.session_state.holdings]
+    tickers = [STOCKS[n] for n in selected_names]
+    weights = np.array([h['weight'] for h in st.session_state.holdings]) / 100
+    with st.spinner('Downloading historical data...'):
+        raw = yf.download(tickers, start=start, end=end, auto_adjust=False, progress=False)
+    if raw.empty:
+        st.warning('No historical data was returned for this portfolio and date range.')
+    else:
+        close = raw['Adj Close'] if 'Adj Close' in raw else raw['Close']
+        volume = raw['Volume'] if 'Volume' in raw else pd.DataFrame(index=close.index)
+        if isinstance(close, pd.Series): close = close.to_frame(name=tickers[0])
+        if isinstance(volume, pd.Series): volume = volume.to_frame(name=tickers[0])
+        close.columns = tickers[:len(close.columns)]
+        volume.columns = tickers[:len(volume.columns)]
+        close = close.dropna(how='all').ffill().dropna(how='all')
+        missing = [name for name, ticker in zip(selected_names, tickers) if ticker not in close.columns or close[ticker].dropna().empty]
+        if missing:
+            st.warning('No data was available for: ' + ', '.join(missing))
+        if close.empty:
+            st.error('No usable price data is available for the selected stocks.')
+        else:
+            returns = close.pct_change().dropna(how='all')
+            usable = [ticker for ticker in tickers if ticker in returns.columns]
+            usable_weights = np.array([weights[tickers.index(ticker)] for ticker in usable])
+            portfolio_returns = returns[usable].fillna(0).dot(usable_weights)
+            portfolio_value = (1 + portfolio_returns).cumprod() * 100
+            min_date = close.index.min().date()
+            max_date = close.index.max().date()
+            filter_col1, filter_col2 = st.columns(2)
+            with filter_col1:
+                data_start = st.date_input('Data start date', min_date, min_value=min_date, max_value=max_date, key='historical_start')
+            with filter_col2:
+                data_end = st.date_input('Data end date', max_date, min_value=min_date, max_value=max_date, key='historical_end')
+            if data_start > data_end:
+                st.error('Data start date must be before or equal to data end date.')
+                st.stop()
+            search_filter = st.text_input('Filter table columns or stock names', key='historical_filter')
+            mask = (close.index.date >= data_start) & (close.index.date <= data_end)
+            filtered_close = close.loc[mask]
+            filtered_returns = returns.loc[returns.index.map(lambda x: data_start <= x.date() <= data_end)]
+            filtered_portfolio_returns = portfolio_returns.loc[portfolio_returns.index.map(lambda x: data_start <= x.date() <= data_end)]
+            filtered_portfolio_value = portfolio_value.loc[portfolio_value.index.map(lambda x: data_start <= x.date() <= data_end)]
+            filtered_volume = volume.loc[volume.index.map(lambda x: data_start <= x.date() <= data_end)]
+            if search_filter:
+                wanted = [c for c in filtered_close.columns if search_filter.lower() in str(c).lower()]
+                filtered_close = filtered_close[wanted]
+                filtered_returns = filtered_returns[[c for c in filtered_returns.columns if c in wanted]]
+                filtered_volume = filtered_volume[[c for c in filtered_volume.columns if c in wanted]]
+            def show_download(label, frame, key):
+                st.download_button(label, frame.to_csv().encode('utf-8'), file_name=key + '.csv', mime='text/csv', key='download_' + key)
+            st.markdown('### Adjusted closing prices')
+            st.dataframe(filtered_close, use_container_width=True)
+            show_download('Download adjusted prices CSV', filtered_close, 'adjusted_prices')
+            st.markdown('### Daily stock returns')
+            st.dataframe(filtered_returns.style.format('{:.2%}'), use_container_width=True)
+            show_download('Download stock returns CSV', filtered_returns, 'stock_returns')
+            st.markdown('### Portfolio daily returns')
+            portfolio_returns_table = filtered_portfolio_returns.rename('Portfolio daily return').to_frame()
+            st.dataframe(portfolio_returns_table.style.format('{:.2%}'), use_container_width=True)
+            show_download('Download portfolio returns CSV', portfolio_returns_table, 'portfolio_returns')
+            st.markdown('### Portfolio value by date')
+            portfolio_value_table = filtered_portfolio_value.rename('Portfolio value').to_frame()
+            st.dataframe(portfolio_value_table.style.format('{:.2f}'), use_container_width=True)
+            show_download('Download portfolio value CSV', portfolio_value_table, 'portfolio_value')
+            st.markdown('### Trading volume')
+            st.dataframe(filtered_volume, use_container_width=True)
+            show_download('Download trading volume CSV', filtered_volume, 'trading_volume')
