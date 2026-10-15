@@ -35,10 +35,18 @@ if 'holdings' not in st.session_state:
     st.session_state.holdings = [{'name': 'Apple', 'weight': 50.0}, {'name': 'Microsoft', 'weight': 50.0}]
 if 'portfolios' not in st.session_state:
     st.session_state.portfolios = {}
+if 'active_portfolio_name' not in st.session_state:
+    st.session_state.active_portfolio_name = 'My Portfolio'
+if 'active_start' not in st.session_state:
+    st.session_state.active_start = pd.Timestamp('2020-01-01').date()
+if 'active_end' not in st.session_state:
+    st.session_state.active_end = pd.Timestamp.today().date()
+if 'active_benchmark' not in st.session_state:
+    st.session_state.active_benchmark = '^GSPC'
 
 with st.sidebar:
     st.header('Portfolio setup')
-    portfolio_name = st.text_input('Portfolio name', 'My Portfolio')
+    portfolio_name = st.text_input('Portfolio name', key='active_portfolio_name')
     st.caption('Search by company name. Suggestions also tolerate small spelling mistakes.')
     for i, holding in enumerate(st.session_state.holdings):
         st.markdown(f'**Stock {i + 1}**')
@@ -61,9 +69,9 @@ with st.sidebar:
             st.rerun()
     total_weight = sum(h['weight'] for h in st.session_state.holdings)
     st.metric('Total portfolio weight', f'{total_weight:.1f}%')
-    start = st.date_input('Start date', pd.Timestamp('2020-01-01'), min_value=pd.Timestamp('1900-01-01'), max_value=pd.Timestamp.today())
-    end = st.date_input('End date', pd.Timestamp.today())
-    benchmark = st.text_input('Benchmark symbol', '^GSPC')
+    start = st.date_input('Start date', min_value=pd.Timestamp('1900-01-01'), max_value=pd.Timestamp.today(), key='active_start')
+    end = st.date_input('End date', min_value=pd.Timestamp('1900-01-01'), max_value=pd.Timestamp.today(), key='active_end')
+    benchmark = st.text_input('Benchmark symbol', key='active_benchmark')
     analyze = st.button('Analyze portfolio', type='primary')
     st.divider()
     st.subheader('Saved portfolios')
@@ -74,7 +82,7 @@ with st.sidebar:
 
 if page == 'Portfolio Builder':
     st.info('Use the sidebar controls to build your portfolio, then choose Portfolio Overview to run the analysis.')
-elif page not in ('Portfolio Overview', 'Performance Analysis', 'Historical Data', 'Risk & KPI Analysis', 'Stock Details', 'Saved Portfolios'):
+elif page not in ('Portfolio Overview', 'Performance Analysis', 'Historical Data', 'Risk & KPI Analysis', 'Stock Details'):
     st.info(f'{page} will be added in the next step.')
 
 if page == 'Portfolio Overview' and analyze:
@@ -100,7 +108,10 @@ if page == 'Portfolio Overview' and analyze:
     annual_return = portfolio_returns.mean() * 252
     annual_vol = portfolio_returns.std() * np.sqrt(252)
     sharpe = annual_return / annual_vol if annual_vol else np.nan
-    st.session_state.portfolios[portfolio_name] = {'stocks': selected_names, 'weights': weights.tolist(), 'benchmark': benchmark, 'start_date': str(start), 'end_date': str(end)}
+    if portfolio_name.strip() in st.session_state.portfolios:
+        st.warning(f'A portfolio named {portfolio_name.strip()} already exists. Choose a different name to avoid overwriting it.')
+        st.stop()
+    st.session_state.portfolios[portfolio_name.strip()] = {'stocks': selected_names, 'weights': weights.tolist(), 'benchmark': benchmark, 'start_date': str(start), 'end_date': str(end)}
     c1, c2, c3, c4 = st.columns(4)
     c1.metric('Annual return', f'{annual_return:.2%}')
     c2.metric('Annual volatility', f'{annual_vol:.2%}')
@@ -382,10 +393,10 @@ elif page == 'Saved Portfolios':
         d3.metric('End date', str(saved.get('end_date', 'Not recorded')))
         if st.button('Load selected portfolio', type='primary'):
             st.session_state.holdings = [{'name': name, 'weight': float(weight) * 100 if float(weight) <= 1 else float(weight)} for name, weight in zip(saved_stocks, saved_weights)]
-            st.session_state.loaded_portfolio_name = selected_saved
-            st.session_state.loaded_benchmark = saved.get('benchmark', '^GSPC')
-            st.session_state.loaded_start = saved.get('start_date')
-            st.session_state.loaded_end = saved.get('end_date')
+            st.session_state.active_portfolio_name = selected_saved
+            st.session_state.active_benchmark = saved.get('benchmark', '^GSPC')
+            st.session_state.active_start = pd.Timestamp(saved.get('start_date', '2020-01-01')).date()
+            st.session_state.active_end = pd.Timestamp(saved.get('end_date', pd.Timestamp.today())).date()
             st.success(f'Loaded {selected_saved}. Go to Portfolio Overview and click Analyze portfolio.')
             st.rerun()
         st.divider()
