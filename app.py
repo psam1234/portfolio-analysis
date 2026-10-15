@@ -9,6 +9,7 @@ st.set_page_config(page_title='Portfolio Analysis', page_icon='📈', layout='wi
 st.title('Portfolio Analysis')
 st.caption('Build and explore your investment portfolios online')
 
+
 PAGES = [
     'Portfolio Builder',
     'Portfolio Overview',
@@ -68,7 +69,7 @@ with st.sidebar:
     start = st.date_input('Start date', min_value=pd.Timestamp('1900-01-01'), max_value=pd.Timestamp.today(), key='active_start')
     end = st.date_input('End date', min_value=pd.Timestamp('1900-01-01'), max_value=pd.Timestamp.today(), key='active_end')
     benchmark = st.text_input('Benchmark symbol', key='active_benchmark')
-    analyze = st.button('Analyze portfolio', type='primary')
+    analyze = st.button('Analyze portfolio', type='primary'); save_portfolio = st.button('Save portfolio')
     st.divider()
     st.subheader('Saved portfolios')
     if st.session_state.portfolios:
@@ -81,7 +82,7 @@ if page == 'Portfolio Builder':
 elif page not in ('Portfolio Overview', 'Performance Analysis', 'Historical Data', 'Risk & KPI Analysis', 'Stock Details'):
     st.info(f'{page} will be added in the next step.')
 
-if page == 'Portfolio Overview' and analyze:
+if page == 'Portfolio Overview' and (analyze or save_portfolio):
     total_weight = sum(h['weight'] for h in st.session_state.holdings)
     if abs(total_weight - 100.0) > 0.01:
         st.error(f'Weights must add up to exactly 100%. Current total: {total_weight:.1f}%.')
