@@ -13,7 +13,7 @@ STOCKS = {
     'Apple': 'AAPL', 'Microsoft': 'MSFT', 'Amazon': 'AMZN', 'Alphabet (Google)': 'GOOGL',
     'Meta Platforms': 'META', 'NVIDIA': 'NVDA', 'Tesla': 'TSLA', 'Berkshire Hathaway': 'BRK-B',
     'JPMorgan Chase': 'JPM', 'Visa': 'V', 'Johnson & Johnson': 'JNJ', 'Coca-Cola': 'KO',
-    'McDonald's': 'MCD', 'Walmart': 'WMT', 'Netflix': 'NFLX', 'Adobe': 'ADBE',
+    "McDonald's": 'MCD', 'Walmart': 'WMT', 'Netflix': 'NFLX', 'Adobe': 'ADBE',
     'SAP': 'SAP.DE', 'Siemens': 'SIE.DE', 'Allianz': 'ALV.DE', 'BASF': 'BAS.DE',
     'BMW': 'BMW.DE', 'Mercedes-Benz': 'MBG.DE', 'Volkswagen': 'VOW3.DE', 'Airbus': 'AIR.DE',
     'Deutsche Bank': 'DBK.DE', 'Deutsche Telekom': 'DTE.DE', 'Adidas': 'ADS.DE',
