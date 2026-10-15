@@ -102,10 +102,10 @@ if page == 'Portfolio Overview' and (analyze or save_portfolio):
     annual_return = portfolio_returns.mean() * 252
     annual_vol = portfolio_returns.std() * np.sqrt(252)
     sharpe = annual_return / annual_vol if annual_vol else np.nan
-    if portfolio_name.strip() in st.session_state.portfolios:
+    if save_portfolio and portfolio_name.strip() in st.session_state.portfolios:
         st.warning(f'A portfolio named {portfolio_name.strip()} already exists. Choose a different name to avoid overwriting it.')
         st.stop()
-    st.session_state.portfolios[portfolio_name.strip()] = {'stocks': selected_names, 'weights': weights.tolist(), 'benchmark': benchmark, 'start_date': str(start), 'end_date': str(end)}
+    if save_portfolio: st.session_state.portfolios[portfolio_name.strip()] = {'stocks': selected_names, 'weights': weights.tolist(), 'benchmark': benchmark, 'start_date': str(start), 'end_date': str(end)}
     c1, c2, c3, c4 = st.columns(4)
     c1.metric('Annual return', f'{annual_return:.2%}')
     c2.metric('Annual volatility', f'{annual_vol:.2%}')
