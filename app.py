@@ -50,7 +50,7 @@ with st.sidebar:
             st.rerun()
     total_weight = sum(h['weight'] for h in st.session_state.holdings)
     st.metric('Total portfolio weight', f'{total_weight:.1f}%')
-    start = st.date_input('Start date', pd.Timestamp('2020-01-01'))
+    start = st.date_input('Start date', pd.Timestamp('2020-01-01'), min_value=pd.Timestamp('1900-01-01'), max_value=pd.Timestamp.today())
     end = st.date_input('End date', pd.Timestamp.today())
     benchmark = st.text_input('Benchmark symbol', '^GSPC')
     analyze = st.button('Analyze portfolio', type='primary')
