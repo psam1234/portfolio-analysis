@@ -9,6 +9,17 @@ st.set_page_config(page_title='Portfolio Analysis', page_icon='📈', layout='wi
 st.title('Portfolio Analysis')
 st.caption('Build and explore your investment portfolios online')
 
+PAGES = [
+    'Portfolio Builder',
+    'Portfolio Overview',
+    'Historical Data',
+    'Performance Analysis',
+    'Risk & KPI Analysis',
+    'Stock Details',
+    'Saved Portfolios'
+]
+page = st.sidebar.radio('Navigate', PAGES, index=1)
+
 STOCKS = {
     'Apple': 'AAPL', 'Microsoft': 'MSFT', 'Amazon': 'AMZN', 'Alphabet (Google)': 'GOOGL',
     'Meta Platforms': 'META', 'NVIDIA': 'NVDA', 'Tesla': 'TSLA', 'Berkshire Hathaway': 'BRK-B',
@@ -58,7 +69,12 @@ with st.sidebar:
     st.subheader('Saved portfolios')
     st.write(', '.join(st.session_state.portfolios.keys()) if st.session_state.portfolios else 'No saved portfolios yet')
 
-if analyze:
+if page == 'Portfolio Builder':
+    st.info('Use the sidebar controls to build your portfolio, then choose Portfolio Overview to run the analysis.')
+elif page != 'Portfolio Overview':
+    st.info(f'{page} will be added in the next step.')
+
+if page == 'Portfolio Overview' and analyze:
     total_weight = sum(h['weight'] for h in st.session_state.holdings)
     if abs(total_weight - 100.0) > 0.01:
         st.error(f'Weights must add up to exactly 100%. Current total: {total_weight:.1f}%.')
@@ -98,5 +114,5 @@ if analyze:
     fig = px.scatter(chart_data, x='Annual volatility', y='Annual return', text='Ticker', title='Risk-return comparison')
     fig.update_traces(textposition='top center')
     st.plotly_chart(fig, use_container_width=True)
-else:
+elif page == 'Portfolio Overview':
     st.info('Add stocks, set their weights to total 100%, then click Analyze portfolio.')
