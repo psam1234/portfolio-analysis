@@ -71,7 +71,7 @@ with st.sidebar:
 
 if page == 'Portfolio Builder':
     st.info('Use the sidebar controls to build your portfolio, then choose Portfolio Overview to run the analysis.')
-elif page not in ('Portfolio Overview', 'Performance Analysis', 'Historical Data'):
+elif page not in ('Portfolio Overview', 'Performance Analysis', 'Historical Data', 'Risk & KPI Analysis'):
     st.info(f'{page} will be added in the next step.')
 
 if page == 'Portfolio Overview' and analyze:
