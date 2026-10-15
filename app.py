@@ -32,7 +32,7 @@ STOCKS = {
 }
 
 if 'holdings' not in st.session_state:
-    st.session_state.holdings = [{'name': 'Apple', 'weight': 50.0}, {'name': 'Microsoft', 'weight': 50.0}]
+    st.session_state.holdings = [{'name': 'Apple', 'weight': 100.0}]
 if 'portfolios' not in st.session_state:
     st.session_state.portfolios = {}
 if 'active_portfolio_name' not in st.session_state:
@@ -47,20 +47,16 @@ if 'active_benchmark' not in st.session_state:
 with st.sidebar:
     st.header('Portfolio setup')
     portfolio_name = st.text_input('Portfolio name', key='active_portfolio_name')
-    st.caption('Search by company name. Suggestions also tolerate small spelling mistakes.')
+    st.caption('Select a company from the list. Add more stocks when needed.')
     for i, holding in enumerate(st.session_state.holdings):
         st.markdown(f'**Stock {i + 1}**')
-        search = st.text_input('Type a stock name', value=holding['name'], key=f'search_{i}')
         names = list(STOCKS.keys())
-        matches = difflib.get_close_matches(search, names, n=5, cutoff=0.25) if search else names[:5]
-        partial = [n for n in names if search.lower() in n.lower()]
-        options = list(dict.fromkeys(partial + matches + names))
-        selected = st.selectbox('Select stock', options, index=options.index(holding['name']) if holding['name'] in options else 0, key=f'select_{i}')
+        selected = st.selectbox('Select stock', names, index=names.index(holding['name']) if holding['name'] in names else 0, key=f'select_{i}')
         holding['name'] = selected
         holding['weight'] = st.number_input('Weight (%)', min_value=0.0, max_value=100.0, value=float(holding['weight']), step=1.0, key=f'weight_{i}')
     add_col, remove_col = st.columns(2)
     with add_col:
-        if st.button('Add stock'):
+        if st.button('Add another stock'):
             st.session_state.holdings.append({'name': 'Apple', 'weight': 0.0})
             st.rerun()
     with remove_col:
