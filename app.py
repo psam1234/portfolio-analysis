@@ -203,7 +203,7 @@ elif page == 'Performance Analysis':
 
 elif page == 'Risk & KPI Analysis':
     st.subheader('Risk & KPI Analysis')
-    st.caption('Understand the portfolio's risk using historical daily returns.')
+    st.caption("Understand the portfolio's risk using historical daily returns.")
     selected_names = [h['name'] for h in st.session_state.holdings]
     tickers = [STOCKS[n] for n in selected_names]
     weights = np.array([h['weight'] for h in st.session_state.holdings]) / 100
