@@ -201,6 +201,74 @@ elif page == 'Performance Analysis':
                 st.download_button('Download daily returns CSV', period.to_csv().encode('utf-8'), 'daily_returns.csv', 'text/csv')
                 st.download_button('Download portfolio versus benchmark CSV', cumulative.to_csv().encode('utf-8'), 'portfolio_vs_benchmark.csv', 'text/csv')
 
+elif page == 'Risk & KPI Analysis':
+    st.subheader('Risk & KPI Analysis')
+    st.caption('Understand the portfolio's risk using historical daily returns.')
+    selected_names = [h['name'] for h in st.session_state.holdings]
+    tickers = [STOCKS[n] for n in selected_names]
+    weights = np.array([h['weight'] for h in st.session_state.holdings]) / 100
+    with st.spinner('Downloading risk data...'):
+        raw = yf.download(tickers + [benchmark], start=start, end=end, auto_adjust=False, progress=False)
+    if raw.empty:
+        st.warning('No risk data was returned for the selected portfolio and date range.')
+    else:
+        close = raw['Adj Close'] if 'Adj Close' in raw else raw['Close']
+        if isinstance(close, pd.Series): close = close.to_frame(name=(tickers + [benchmark])[0])
+        close = close.dropna(how='all').ffill().dropna(how='all')
+        usable = [t for t in tickers if t in close.columns and close[t].notna().any()]
+        missing = [n for n, t in zip(selected_names, tickers) if t not in usable]
+        if missing: st.warning('No data was available for: ' + ', '.join(missing))
+        if not usable:
+            st.error('No usable stock data is available.')
+        else:
+            stock_returns = close[usable].pct_change().dropna(how='all')
+            usable_weights = np.array([weights[tickers.index(t)] for t in usable])
+            portfolio_returns = stock_returns[usable].fillna(0).dot(usable_weights).dropna()
+            benchmark_returns = close[benchmark].pct_change().reindex(portfolio_returns.index) if benchmark in close.columns else pd.Series(dtype=float)
+            data_start, data_end = portfolio_returns.index.min().date(), portfolio_returns.index.max().date()
+            r1, r2 = st.columns(2)
+            with r1: risk_start = st.date_input('Risk start date', data_start, min_value=data_start, max_value=data_end, key='risk_start')
+            with r2: risk_end = st.date_input('Risk end date', data_end, min_value=data_start, max_value=data_end, key='risk_end')
+            if risk_start > risk_end:
+                st.error('Risk start date must be before or equal to the end date.')
+                st.stop()
+            mask = (portfolio_returns.index.date >= risk_start) & (portfolio_returns.index.date <= risk_end)
+            pr = portfolio_returns.loc[mask]
+            br = benchmark_returns.loc[mask].dropna() if not benchmark_returns.empty else pd.Series(dtype=float)
+            if pr.empty:
+                st.warning('No data is available for the selected risk dates.')
+            else:
+                ann = 252
+                vol = pr.std() * np.sqrt(ann)
+                downside = pr[pr < 0].std() * np.sqrt(ann)
+                sharpe = (pr.mean() * ann) / vol if vol else np.nan
+                sortino = (pr.mean() * ann) / downside if downside and not np.isnan(downside) else np.nan
+                wealth = (1 + pr).cumprod()
+                drawdown = wealth / wealth.cummax() - 1
+                max_dd = drawdown.min()
+                annual_return = (1 + pr).prod() ** (ann / len(pr)) - 1
+                calmar = annual_return / abs(max_dd) if max_dd else np.nan
+                var95 = pr.quantile(0.05)
+                cvar95 = pr[pr <= var95].mean()
+                beta = alpha = np.nan
+                if len(br) > 1:
+                    aligned = pd.concat([pr.rename('p'), br.rename('b')], axis=1).dropna()
+                    if len(aligned) > 1 and aligned['b'].var() != 0:
+                        beta = aligned['p'].cov(aligned['b']) / aligned['b'].var()
+                        alpha = (aligned['p'].mean() - beta * aligned['b'].mean()) * ann
+                diversification = 1 - abs(weights[:len(usable)].dot(stock_returns[usable].corr().fillna(0).values).dot(weights[:len(usable)])) if len(usable) > 1 else 0.0
+                metrics = pd.DataFrame({'Value': [vol, sharpe, sortino, beta, alpha, max_dd, calmar, var95, cvar95, downside, diversification]}, index=['Annualized volatility','Sharpe ratio','Sortino ratio','Beta','Alpha','Maximum drawdown','Calmar ratio','VaR (95%)','CVaR (95%)','Downside deviation','Diversification score'])
+                st.dataframe(metrics.style.format('{:.2%}'), use_container_width=True)
+                st.caption('Volatility measures fluctuation. Sharpe and Sortino compare return with risk. Beta measures sensitivity to the benchmark. Alpha is estimated excess return. Drawdown is the fall from a previous peak. VaR and CVaR estimate bad-day losses. The diversification score is a simple correlation-based indicator.')
+                st.markdown('### Drawdown over time')
+                st.line_chart(drawdown * 100)
+                st.markdown('### Portfolio versus benchmark risk comparison')
+                comparison = pd.DataFrame({'Portfolio': pr})
+                if not br.empty: comparison['Benchmark'] = br
+                st.dataframe(comparison.describe().T, use_container_width=True)
+                st.markdown('### Correlation matrix')
+                st.dataframe(stock_returns[usable].corr().style.format('{:.2f}'), use_container_width=True)
+
 elif page == 'Historical Data':
     st.subheader('Historical Data')
     selected_names = [h['name'] for h in st.session_state.holdings]
