@@ -54,7 +54,7 @@ with st.sidebar:
         selected = st.selectbox('Select stock', names, index=names.index(holding['name']) if holding['name'] in names else 0, key=f'select_{i}')
         holding['name'] = selected
         holding['weight'] = st.number_input('Weight (%)', min_value=0.0, max_value=100.0, value=float(holding['weight']), step=1.0, key=f'weight_{i}')
-    add_col, remove_col = st.columns(2)
+    add_col, remove_col = st.columns([2, 1])
     with add_col:
         if st.button('Add another stock'):
             st.session_state.holdings.append({'name': 'Apple', 'weight': 0.0})
@@ -85,9 +85,6 @@ if page == 'Portfolio Overview' and analyze:
     total_weight = sum(h['weight'] for h in st.session_state.holdings)
     if abs(total_weight - 100.0) > 0.01:
         st.error(f'Weights must add up to exactly 100%. Current total: {total_weight:.1f}%.')
-        st.stop()
-    if len({h['name'] for h in st.session_state.holdings}) < 2:
-        st.error('Please add at least two different stocks.')
         st.stop()
     selected_names = [h['name'] for h in st.session_state.holdings]
     tickers = [STOCKS[n] for n in selected_names]
