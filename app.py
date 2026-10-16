@@ -47,7 +47,7 @@ if 'active_benchmark' not in st.session_state:
 
 with st.sidebar:
     st.header('Portfolio setup')
-    portfolio_name = st.text_input('Portfolio name', key='active_portfolio_name')
+    st.session_state.setdefault('initial_investment', 10000.0); st.session_state.setdefault('base_currency', 'EUR'); portfolio_name = st.text_input('Portfolio name', key='active_portfolio_name'); initial_investment = st.number_input('Initial investment', min_value=0.0, value=float(st.session_state.initial_investment), step=100.0, key='initial_investment'); base_currency = st.selectbox('Base currency', ['EUR', 'USD', 'GBP', 'INR'], key='base_currency')
     st.caption('Select a company from the list. Add more stocks when needed.')
     for i, holding in enumerate(st.session_state.holdings):
         st.markdown(f'**Stock {i + 1}**')
@@ -105,7 +105,7 @@ if page == 'Portfolio Overview' and (analyze or save_portfolio):
     if save_portfolio and portfolio_name.strip() in st.session_state.portfolios:
         st.warning(f'A portfolio named {portfolio_name.strip()} already exists. Choose a different name to avoid overwriting it.')
         st.stop()
-    if save_portfolio: st.session_state.portfolios[portfolio_name.strip()] = {'stocks': selected_names, 'weights': weights.tolist(), 'benchmark': benchmark, 'start_date': str(start), 'end_date': str(end)}
+    if save_portfolio: st.session_state.portfolios[portfolio_name.strip()] = {'stocks': selected_names, 'weights': weights.tolist(), 'benchmark': benchmark, 'start_date': str(start), 'end_date': str(end), 'base_currency': base_currency, 'initial_investment': initial_investment}
     c1, c2, c3, c4 = st.columns(4)
     c1.metric('Annual return', f'{annual_return:.2%}')
     c2.metric('Annual volatility', f'{annual_vol:.2%}')
@@ -114,7 +114,7 @@ if page == 'Portfolio Overview' and (analyze or save_portfolio):
     st.subheader('Portfolio composition')
     st.dataframe(pd.DataFrame({'Stock': selected_names, 'Ticker': tickers, 'Weight': weights}).style.format({'Weight': '{:.1%}'}), hide_index=True)
     st.subheader('Portfolio growth')
-    growth = (1 + portfolio_returns).cumprod().rename('Portfolio value'); growth_frame = growth.to_frame(); fig = px.line(growth_frame, x=growth_frame.index, y='Portfolio value', title='Portfolio growth'); fig.update_traces(hovertemplate='Date: %{x|%b %d, %Y}<br>Portfolio value: %{y:.2f}<extra></extra>'); fig.update_layout(xaxis_title='Date', yaxis_title='Portfolio value (starting at 1.00)'); st.plotly_chart(fig, use_container_width=True)
+    growth = (initial_investment * (1 + portfolio_returns).cumprod()).rename('Portfolio value'); growth_frame = growth.to_frame(); fig = px.line(growth_frame, x=growth_frame.index, y='Portfolio value', title='Portfolio growth'); fig.update_traces(hovertemplate='Date: %{x|%b %d, %Y}<br>Portfolio value: %{y:.2f} ' + base_currency + '<extra></extra>'); fig.update_layout(xaxis_title='Date', yaxis_title='Portfolio value (' + base_currency + ')'); st.plotly_chart(fig, use_container_width=True)
     st.subheader('Annualized stock risk and return')
     summary = pd.DataFrame({'Annual return': returns.mean() * 252, 'Annual volatility': returns.std() * np.sqrt(252)}).dropna()
     st.dataframe(summary.style.format('{:.2%}'))
@@ -336,7 +336,7 @@ elif page == 'Stock Details':
                 st.warning(f'Benchmark data for {benchmark} was unavailable. Beta cannot be calculated.')
             st.info('Annual return estimates the yearly growth rate. Volatility measures price fluctuation. Beta shows sensitivity to the benchmark. Sharpe compares return with risk. Maximum drawdown is the largest fall from a previous peak.')
             st.markdown('### Historical adjusted price')
-            st.line_chart(price_period)
+            currency = {'NS':'INR', 'BO':'INR', 'DE':'EUR', 'PA':'EUR', 'AS':'EUR', 'L':'GBP', 'T':'JPY', 'HK':'HKD', 'TO':'CAD', 'AX':'AUD', 'SW':'CHF', 'KS':'KRW'}.get(ticker.rsplit('.', 1)[-1] if '.' in ticker else 'USD', 'USD'); price_frame = price_period.rename(columns={ticker: 'Adjusted price'}); fig = px.line(price_frame, x=price_frame.index, y='Adjusted price', title=f'{stock_name} adjusted price'); fig.update_traces(hovertemplate='Date: %{x|%b %d, %Y}<br>Adjusted price: %{y:.2f} ' + currency + '<extra></extra>'); fig.update_layout(xaxis_title='Date', yaxis_title='Adjusted price (' + currency + ')'); st.plotly_chart(fig, use_container_width=True)
             st.markdown('### Daily returns')
             st.line_chart(return_period * 100)
             st.markdown('### Historical price data')
@@ -390,7 +390,7 @@ elif page == 'Saved Portfolios':
             st.session_state.active_portfolio_name = selected_saved
             st.session_state.active_benchmark = saved.get('benchmark', '^GSPC')
             st.session_state.active_start = pd.Timestamp(saved.get('start_date', '2020-01-01')).date()
-            st.session_state.active_end = pd.Timestamp(saved.get('end_date', pd.Timestamp.today())).date()
+            st.session_state.active_end = pd.Timestamp(saved.get('end_date', pd.Timestamp.today())).date(); st.session_state.initial_investment = float(saved.get('initial_investment', 10000.0)); st.session_state.base_currency = saved.get('base_currency', 'EUR')
             st.success(f'Loaded {selected_saved}. Go to Portfolio Overview and click Analyze portfolio.')
             st.rerun()
         st.divider()
