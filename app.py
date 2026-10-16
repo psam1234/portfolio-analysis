@@ -29,7 +29,7 @@ STOCKS = {
     'SAP': 'SAP.DE', 'Siemens': 'SIE.DE', 'Allianz': 'ALV.DE', 'BASF': 'BAS.DE',
     'BMW': 'BMW.DE', 'Mercedes-Benz': 'MBG.DE', 'Volkswagen': 'VOW3.DE', 'Airbus': 'AIR.DE',
     'Deutsche Bank': 'DBK.DE', 'Deutsche Telekom': 'DTE.DE', 'Adidas': 'ADS.DE',
-    'LVMH': 'MC.PA', 'ASML': 'ASML.AS', 'Novo Nordisk': 'NOVO-B.CO', 'Shell': 'SHEL.L'
+    'LVMH': 'MC.PA', 'ASML': 'ASML.AS', 'Novo Nordisk': 'NOVO-B.CO', 'Shell': 'SHEL.L', 'Reliance Industries': 'RELIANCE.NS', 'Tata Consultancy Services': 'TCS.NS', 'Infosys': 'INFY.NS', 'HDFC Bank': 'HDFCBANK.NS', 'ICICI Bank': 'ICICIBANK.NS', 'Tata Motors': 'TATAMOTORS.NS', 'Bharti Airtel': 'BHARTIARTL.NS', 'AstraZeneca': 'AZN.L', 'HSBC': 'HSBA.L', 'Unilever': 'ULVR.L', 'Royal Bank of Canada': 'RY.TO', 'Toronto-Dominion Bank': 'TD.TO', 'Toyota': '7203.T', 'Sony Group': '6758.T', 'Alibaba': '9988.HK', 'Tencent': '0700.HK', 'Samsung Electronics': '005930.KS', 'Nestle': 'NESN.SW', 'Roche': 'ROG.SW', 'Novartis': 'NOVN.SW'
 }
 
 if 'holdings' not in st.session_state:
@@ -68,7 +68,7 @@ with st.sidebar:
     st.metric('Total portfolio weight', f'{total_weight:.1f}%')
     start = st.date_input('Start date', min_value=pd.Timestamp('1900-01-01'), max_value=pd.Timestamp.today(), key='active_start')
     end = st.date_input('End date', min_value=pd.Timestamp('1900-01-01'), max_value=pd.Timestamp.today(), key='active_end')
-    benchmark = st.text_input('Benchmark symbol', key='active_benchmark')
+    benchmark = st.selectbox('Benchmark', ['^GSPC', '^NDX', '^DJI', '^GDAXI', '^FTSE', '^N225', '^NSEI', '^BSESN', '^HSI', '^AXJO', '^FCHI', '^SSMI', 'URTH'], format_func=lambda x: {'^GSPC':'S&P 500', '^NDX':'NASDAQ 100', '^DJI':'Dow Jones', '^GDAXI':'DAX', '^FTSE':'FTSE 100', '^N225':'Nikkei 225', '^NSEI':'Nifty 50 (India)', '^BSESN':'Sensex (India)', '^HSI':'Hang Seng', '^AXJO':'ASX 200', '^FCHI':'CAC 40', '^SSMI':'Swiss Market Index', 'URTH':'MSCI World'}[x], key='active_benchmark')
     analyze = st.button('Analyze portfolio', type='primary'); save_portfolio = st.button('Save portfolio')
     st.divider()
     st.subheader('Saved portfolios')
