@@ -114,7 +114,7 @@ if page == 'Portfolio Overview' and (analyze or save_portfolio):
     st.subheader('Portfolio composition')
     st.dataframe(pd.DataFrame({'Stock': selected_names, 'Ticker': tickers, 'Weight': weights}).style.format({'Weight': '{:.1%}'}), hide_index=True)
     st.subheader('Portfolio growth')
-    st.line_chart((1 + portfolio_returns).cumprod())
+    growth = (1 + portfolio_returns).cumprod().rename('Portfolio value'); growth_frame = growth.to_frame(); fig = px.line(growth_frame, x=growth_frame.index, y='Portfolio value', title='Portfolio growth'); fig.update_traces(hovertemplate='Date: %{x|%b %d, %Y}<br>Portfolio value: %{y:.2f}<extra></extra>'); fig.update_layout(xaxis_title='Date', yaxis_title='Portfolio value (starting at 1.00)'); st.plotly_chart(fig, use_container_width=True)
     st.subheader('Annualized stock risk and return')
     summary = pd.DataFrame({'Annual return': returns.mean() * 252, 'Annual volatility': returns.std() * np.sqrt(252)}).dropna()
     st.dataframe(summary.style.format('{:.2%}'))
