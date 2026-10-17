@@ -425,7 +425,10 @@ elif page == 'Historical Data':
         if close.empty:
             st.error('No usable price data is available for the selected stocks.')
         else:
-            returns = close.pct_change().dropna(how='all')
+            converted_close, fx_warnings = convert_prices(close, base_currency, start, end)
+            if fx_warnings:
+                st.warning(' '.join(fx_warnings))
+            returns = converted_close.pct_change().dropna(how='all')
             usable = [ticker for ticker in tickers if ticker in returns.columns]
             usable_weights = np.array([weights[tickers.index(ticker)] for ticker in usable])
             portfolio_returns = returns[usable].fillna(0).dot(usable_weights)
@@ -443,6 +446,7 @@ elif page == 'Historical Data':
             search_filter = st.text_input('Filter table columns or stock names', key='historical_filter')
             mask = (close.index.date >= data_start) & (close.index.date <= data_end)
             filtered_close = close.loc[mask]
+            filtered_converted_close = converted_close.loc[mask]
             filtered_returns = returns.loc[returns.index.map(lambda x: data_start <= x.date() <= data_end)]
             filtered_portfolio_returns = portfolio_returns.loc[portfolio_returns.index.map(lambda x: data_start <= x.date() <= data_end)]
             filtered_portfolio_value = portfolio_value.loc[portfolio_value.index.map(lambda x: data_start <= x.date() <= data_end)]
@@ -454,9 +458,15 @@ elif page == 'Historical Data':
                 filtered_volume = filtered_volume[[c for c in filtered_volume.columns if c in wanted]]
             def show_download(label, frame, key):
                 st.download_button(label, frame.to_csv().encode('utf-8'), file_name=key + '.csv', mime='text/csv', key='download_' + key)
-            st.markdown('### Adjusted closing prices')
+            currency_table = pd.DataFrame({'Ticker': tickers, 'Local currency': [local_currency(ticker) for ticker in tickers]})
+            st.markdown('### Stock currencies')
+            st.dataframe(currency_table, hide_index=True, use_container_width=True)
+            st.markdown('### Adjusted closing prices — local currency')
             st.dataframe(filtered_close, use_container_width=True)
             show_download('Download adjusted prices CSV', filtered_close, 'adjusted_prices')
+            st.markdown('### Adjusted closing prices — converted to ' + base_currency)
+            st.dataframe(filtered_converted_close.style.format('{:.2f}'), use_container_width=True)
+            show_download('Download converted adjusted prices CSV', filtered_converted_close, 'converted_adjusted_prices')
             st.markdown('### Daily stock returns')
             st.dataframe(filtered_returns.style.format('{:.2%}'), use_container_width=True)
             show_download('Download stock returns CSV', filtered_returns, 'stock_returns')
@@ -464,7 +474,7 @@ elif page == 'Historical Data':
             portfolio_returns_table = filtered_portfolio_returns.rename('Portfolio daily return').to_frame()
             st.dataframe(portfolio_returns_table.style.format('{:.2%}'), use_container_width=True)
             show_download('Download portfolio returns CSV', portfolio_returns_table, 'portfolio_returns')
-            st.markdown('### Portfolio value by date')
+            st.markdown('### Portfolio value by date (' + base_currency + ')')
             portfolio_value_table = filtered_portfolio_value.rename('Portfolio value').to_frame()
             st.dataframe(portfolio_value_table.style.format('{:.2f}'), use_container_width=True)
             show_download('Download portfolio value CSV', portfolio_value_table, 'portfolio_value')
