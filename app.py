@@ -2,8 +2,8 @@ import difflib
 import streamlit as st
 import yfinance as yf
 import pandas as pd
-import numpy as np
-import plotly.express as px
+import numpy as np; import plotly.express as px; exec("CURRENCY_MAP={'NS':'INR','BO':'INR','DE':'EUR','PA':'EUR','AS':'EUR','L':'GBP','T':'JPY','HK':'HKD','TO':'CAD','AX':'AUD','SW':'CHF','KS':'KRW'}\ndef local_currency(ticker):\n return CURRENCY_MAP.get(ticker.rsplit('.',1)[-1] if '.' in ticker else 'USD','USD')\ndef convert_prices(prices,target,start,end):\n out=prices.copy(); warnings=[]\n for ticker in prices.columns:\n  source=local_currency(ticker)\n  if source==target: continue\n  try:\n   data=yf.download(source+target+'=X',start=start,end=end,auto_adjust=False,progress=False); rate=data['Close'] if 'Close' in data else pd.Series(dtype=float)\n   if isinstance(rate,pd.DataFrame): rate=rate.iloc[:,0]\n   if rate.empty:\n    data=yf.download(target+source+'=X',start=start,end=end,auto_adjust=False,progress=False); rate=data['Close'] if 'Close' in data else pd.Series(dtype=float); rate=rate.iloc[:,0] if isinstance(rate,pd.DataFrame) else rate; rate=1/rate\n   rate=rate.reindex(prices.index).ffill().bfill()\n   if rate.empty or rate.isna().all(): warnings.append('FX data unavailable for '+ticker)\n   else: out[ticker]=prices[ticker]*rate\n  except Exception: warnings.append('FX data unavailable for '+ticker)\n return out,warnings")
+
 
 st.set_page_config(page_title='Portfolio Analysis', page_icon='📈', layout='wide')
 st.title('Portfolio Analysis')
@@ -94,7 +94,7 @@ if page == 'Portfolio Overview' and (analyze or save_portfolio):
         prices = yf.download(tickers, start=start, end=end, auto_adjust=True, progress=False)['Close']
         if isinstance(prices, pd.Series): prices = prices.to_frame(name=tickers[0])
         prices = prices.dropna(how='all').ffill().dropna()
-        returns = prices.pct_change().dropna()
+        converted_prices, fx_warnings = convert_prices(prices, base_currency, start, end); st.warning(' '.join(fx_warnings)) if fx_warnings else None; returns = converted_prices.pct_change().dropna()
     if returns.empty:
         st.error('No data was returned. Check the selected stocks and dates.')
         st.stop()
