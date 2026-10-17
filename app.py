@@ -126,7 +126,7 @@ elif page == 'Portfolio Overview':
     st.info('Add stocks, set their weights to total 100%, then click Analyze portfolio.')
 elif page == 'Performance Analysis':
     st.subheader('Performance Analysis')
-    st.caption('Compare your portfolio performance with the selected benchmark over time.')
+    st.caption('Compare currency-aware portfolio performance with the selected benchmark over time.')
     selected_names = [h['name'] for h in st.session_state.holdings]
     tickers = [STOCKS[n] for n in selected_names]
     weights = np.array([h['weight'] for h in st.session_state.holdings]) / 100
@@ -148,7 +148,9 @@ elif page == 'Performance Analysis':
             st.error('No usable stock price data is available.')
         else:
             usable_weights = np.array([weights[tickers.index(t)] for t in usable])
-            stock_returns = portfolio_prices[usable].pct_change()
+            converted_prices, fx_warnings = convert_prices(portfolio_prices[usable], base_currency, start, end)
+            if fx_warnings: st.warning(' '.join(fx_warnings))
+            stock_returns = converted_prices.pct_change()
             portfolio_returns = stock_returns.fillna(0).dot(usable_weights).rename('Portfolio')
             benchmark_series = close[benchmark].dropna() if benchmark in close.columns else pd.Series(dtype=float)
             if benchmark_series.empty:
