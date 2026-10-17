@@ -208,7 +208,6 @@ elif page == 'Performance Analysis':
                 st.line_chart(rolling * 100)
                 st.download_button('Download daily returns CSV', period.to_csv().encode('utf-8'), 'daily_returns.csv', 'text/csv')
                 st.download_button('Download portfolio versus benchmark CSV', cumulative.to_csv().encode('utf-8'), 'portfolio_vs_benchmark.csv', 'text/csv')
-
 elif page == 'Risk & KPI Analysis':
     st.subheader('Risk & KPI Analysis')
     st.caption("Understand the portfolio's risk using historical daily returns.")
