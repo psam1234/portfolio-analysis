@@ -212,7 +212,7 @@ elif page == 'Performance Analysis':
                 st.download_button('Download portfolio versus benchmark CSV', cumulative.to_csv().encode('utf-8'), 'portfolio_vs_benchmark.csv', 'text/csv')
 elif page == 'Risk & KPI Analysis':
     st.subheader('Risk & KPI Analysis')
-    st.caption("Understand the portfolio's risk using historical daily returns.")
+    st.caption("Understand currency-aware portfolio risk using historical daily returns in the selected base currency.")
     selected_names = [h['name'] for h in st.session_state.holdings]
     tickers = [STOCKS[n] for n in selected_names]
     weights = np.array([h['weight'] for h in st.session_state.holdings]) / 100
@@ -230,7 +230,9 @@ elif page == 'Risk & KPI Analysis':
         if not usable:
             st.error('No usable stock data is available.')
         else:
-            stock_returns = close[usable].pct_change().dropna(how='all')
+            converted_risk_prices, fx_warnings = convert_prices(close[usable], base_currency, start, end)
+            if fx_warnings: st.warning(' '.join(fx_warnings))
+            stock_returns = converted_risk_prices.pct_change().dropna(how='all')
             usable_weights = np.array([weights[tickers.index(t)] for t in usable])
             portfolio_returns = stock_returns[usable].fillna(0).dot(usable_weights).dropna()
             benchmark_returns = close[benchmark].pct_change().reindex(portfolio_returns.index) if benchmark in close.columns else pd.Series(dtype=float)
